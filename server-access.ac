@@ -1,0 +1,29 @@
+{
+  "$schema": "https://ugs-config-schemas.unity3d.com/v1/project-access-policy.schema.json",
+  "Statements": [
+    {
+      "Sid": "deny-all",
+      "Action": [
+        "*"
+      ],
+      "Effect": "Deny",
+      "Principal": "Player",
+      "Resource": "urn:ugs:*",
+      "Version": "1.0.0"
+    },
+    {
+      "Sid": "allow-player-cloud-code-access",
+      "Effect": "Allow",
+      "Action": ["*"],
+      "Principal": "Player",
+      "Resource": "urn:ugs:cloud-code:/v1/projects/*/modules/Player/*"
+    },
+    {
+      "Sid": "deny-server-endpoints",
+      "Effect": "Deny",
+      "Action": ["*"],
+      "Principal": "Player",
+      "Resource": "urn:ugs:cloud-code:/v1/projects/*/modules/Player/*Server"
+    },
+  ]
+}
