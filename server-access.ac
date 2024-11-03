@@ -16,7 +16,7 @@
       "Effect": "Allow",
       "Action": ["*"],
       "Principal": "Player",
-      "Resource": "urn:ugs:cloud-code:/v1/projects/*/modules/Player/*"
+      "Resource": "urn:ugs:cloud-code:*"
     },
     {
       "Sid": "deny-server-endpoints",
