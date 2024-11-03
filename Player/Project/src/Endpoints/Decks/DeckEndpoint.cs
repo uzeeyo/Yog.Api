@@ -10,9 +10,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Unity.Services.CloudCode.Apis;
 using Unity.Services.CloudCode.Core;
-using Unity.Services.CloudSave.Model;
 using Yog.Api.Models;
-using Yog.Database;
 
 namespace Yog.Api.Endpoints
 {
@@ -83,7 +81,7 @@ namespace Yog.Api.Endpoints
 			{
 				var deckGuid = Guid.Parse(deckId);
 				var deck = await _supabaseClient.Connection.From<Deck>()
-				.Select("id, name, Cards!inner(id, name, cardType, attack, health, processorCost, memoryCost, description, imagePath, elementType, CardEffects(id, effectType, turnPhase, targetSide, targetType, selectionType, condition, amount1, amount2))")
+				.Select("id, name, Cards!inner(id, name, cardType, attack, health, processorCost, memoryCost, description, imagePath, raceType, elementType, CardEffects(id, effectType, turnPhase, targetSide, targetType, selectionType, condition, amount1, amount2, turnsActive, activationType))")
 				.Where(x => x.PlayerId == playerId && x.Id == deckGuid)
 				.Single();
 
@@ -96,7 +94,7 @@ namespace Yog.Api.Endpoints
 			}
 			catch (PostgrestException e)
 			{
-				_logger.LogError("Postgrest error. {error}", e.Reason);
+				_logger.LogError("Failed to get dec4k. Postgrest error. {error}", e.Message);
 				throw new Exception("Failed to get deck.");
 			}
 			catch (FormatException)
@@ -123,11 +121,11 @@ namespace Yog.Api.Endpoints
 
 		[CloudCodeFunction("GetAllPlayerDecks")]
 		public async Task<List<Deck>> GetAllPlayerDecks(IExecutionContext context, IGameApiClient gameApiClient)
-		{			
+		{
 			try
 			{
 				var decks = await _supabaseClient.Connection.From<Deck>()
-				.Select("id, name, Cards!inner(id, name, attack, health, processorCost, memoryCost, description, elementType, imagePath)")
+				.Select("id, name, Cards!inner(id, name, cardType, attack, health, processorCost, memoryCost, description, elementType, imagePath)")
 				.Where(x => x.PlayerId == context.PlayerId)
 				.Order(x => x.CreatedAt, Constants.Ordering.Ascending)
 				.Get();
