@@ -25,25 +25,6 @@ namespace Yog.Api.Endpoints
 		private readonly ILogger<PlayerEndpoint> _logger;
 		private readonly ISupabaseClient _supabaseClient;
 
-		class SteamResponse
-		{
-			public ResponseData Response { get; set; }
-		}
-
-		class ResponseData
-		{
-			public ParamsData Params { get; set; }
-		}
-
-		class ParamsData
-		{
-			public string Result { get; set; }
-			public string SteamID { get; set; }
-			public string OwnerSteamID { get; set; }
-			public bool VACBanned { get; set; }
-			public bool PublisherBanned { get; set; }
-		}
-
 
 		[CloudCodeFunction("GetPlayerDetails")]
 		public async Task<Player> GetPlayerDetails(string steamAuthTicket, IExecutionContext context)
@@ -203,35 +184,6 @@ namespace Yog.Api.Endpoints
 			}
 
 		}
-
-		[CloudCodeFunction("SelectCore")]
-		public async Task SelectCore(string coreId, IExecutionContext context)
-		{
-			try
-			{
-				var id = Guid.Parse(coreId);
-				var player = await _supabaseClient.Connection.From<Player>()
-				.Where(x => x.Id == context.PlayerId)
-				.Single();
-				if (player == null)
-				{
-					throw new Exception("Player does not exist");
-				}
-				player.SelectedCoreId = id;
-				await player.Update<Player>();
-			}
-			catch (PostgrestException e)
-			{
-				_logger.LogError("Postgrest error. {error}", e.Reason);
-				throw new Exception("Failed to update core.");
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Failed to update core. {error}", e.Message);
-				throw new Exception("Failed to update core.");
-			}
-		}
-
 
 		[CloudCodeFunction("UpdatePlayerXpServer")]
 		public async Task UpdatePlayerXp(string playerId, int xp)

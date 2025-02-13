@@ -29,9 +29,6 @@ namespace Yog.Api.Models
 
 		[Column("Decks", NullValueHandling.Ignore, true, true)]
 		public List<Deck>? Decks { get; set; }
-		
-		[Column("selectedCoreId")]
-		public Guid SelectedCoreId { get; set; }
 
 		[Reference(typeof(Pack), false)]
 		public List<Pack>? Packs { get; set; }
