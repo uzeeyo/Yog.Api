@@ -7,7 +7,6 @@ namespace Yog.Api
 {
 	public class HttpRequest
 	{
-		private const string CREDENTIALS = "MjY2NGEzZWYtMTA0My00ZmIzLWI1ZWQtMjgxODQwM2VhOTFmOnEwRlMySlNtQ2NMTTRHdVczazlfU3EzcjJKeVFrSk1Q";
 		private static string AUTH_TOKEN = string.Empty;
 		private static readonly HttpClient _client = new HttpClient();
 
@@ -16,7 +15,7 @@ namespace Yog.Api
 			try
 			{
 				var request = new HttpRequestMessage(HttpMethod.Post, "https://services.api.unity.com/auth/v1/token-exchange?projectId=68e1b8db-87a4-48ae-a6a9-850e344a1440&environmentId=8a031346-a532-4eb0-8175-c38444dc3215");
-				request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", CREDENTIALS);
+				request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Secret.UGS_CREDENTIALS);
 				request.Content = new StringContent(JsonConvert.SerializeObject(new
 				{
 					scopes = new string[] { "unity.projects.get", "multiplay.allocations.create", "multiplay.allocations.list", "multiplay.allocations.get" }
