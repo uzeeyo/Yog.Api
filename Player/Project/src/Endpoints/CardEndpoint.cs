@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Postgrest;
@@ -28,21 +29,11 @@ namespace Yog.Api
 		{
 			try
 			{
-				card.Id = Guid.NewGuid();
-				card.CreatedAt = DateTime.UtcNow;
 				var insertedCard = await _supabaseClient.Connection.From<Card>().Insert(card, new QueryOptions { Returning = QueryOptions.ReturnType.Representation });
 				_logger.LogInformation("Created card: {name}.", card.Name);
-				if (card.Effects != null)
-				{
-					card.Effects[0].Id = Guid.NewGuid();
-					var insertedEffect = await _supabaseClient.Connection.From<CardEffect>()
-						.Insert(card.Effects[0], new QueryOptions { Returning = QueryOptions.ReturnType.Representation });
-					await _supabaseClient.Connection.From<Card_CardEffect>()
-					.Insert(new Card_CardEffect { Id = Guid.NewGuid(), CardId = insertedCard.Model.Id, EffectId = insertedEffect.Model.Id });
-				}
 
 				//just unlocking all cards for myself
-				await _supabaseClient.Connection.From<PlayerCard>().Insert(new PlayerCard { PlayerId = "stFRgEyo4tEm0VJGiBdMUeUG9Pgu", CardId = insertedCard.Model.Id, Count = 1 });
+				await _supabaseClient.Connection.From<PlayerCard>().Insert(new PlayerCard { PlayerId = "stFRgEyo4tEm0VJGiBdMUeUG9Pgu", CardName = insertedCard.Model.Name, Count = 1 });
 			}
 			catch (PostgrestException e)
 			{
@@ -58,76 +49,29 @@ namespace Yog.Api
 			{
 				_logger.LogError("Failed to create card. {error}", e.Message);
 				throw new Exception("Failed to create card.");
-			}
-		}
-
-		[CloudCodeFunction("EditCardServer")]
-		public async Task EditCard(IExecutionContext context, Card card)
-		{
-			try
-			{
-				var oldCard = await _supabaseClient.Connection.From<Card>()
-				.Where(x => x.Id == card.Id)
-				.Single();
-
-				if (oldCard == null)
-				{
-					throw new Exception("Card not found.");
-				}
-
-				card.EditedAt = DateTime.UtcNow;
-				await _supabaseClient.Connection.From<Card>().Upsert(card);
-				if (card.Effects == null) return;
-
-				foreach (var effect in card.Effects)
-				{
-					if (oldCard.Effects == null || oldCard.Effects.Count == 0)
-					{
-						card.Effects[0].Id = Guid.NewGuid();
-						var newEffect = await _supabaseClient.Connection.From<CardEffect>().Insert(card.Effects[0], new QueryOptions { Returning = QueryOptions.ReturnType.Representation });
-						await _supabaseClient.Connection.From<Card_CardEffect>().Insert(new Card_CardEffect { Id = Guid.NewGuid(), CardId = card.Id, EffectId = newEffect.Model.Id });
-						return;
-					}
-
-					effect.Id = oldCard.Effects[0].Id;
-					await _supabaseClient.Connection.From<CardEffect>().Update(effect);
-				}
-			}
-			catch (PostgrestException e)
-			{
-				_logger.LogError("Postgrest error. {error}", e.Message);
-				throw new Exception("Failed to edit card.");
-			}
-			catch (SupabaseStorageException e)
-			{
-				_logger.LogError("Supbase error. {error}", e.Message);
-				throw new Exception("Failed to edit card.");
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Failed to create card. {error}", e.Message);
-				throw new Exception("Failed to edit card.");
 			}
 		}
 
 		[CloudCodeFunction("GetUnlockedCards")]
-		public async Task<List<Card>> GetUnlockedCards(IExecutionContext context)
+		public async Task<List<string>> GetUnlockedCards(IExecutionContext context)
 		{
 			try
 			{
 				var cards = await _supabaseClient.Connection.From<Card>()
-				.Select("id, name, attack, health, processorCost, memoryCost, description, imagePath, elementType, cardType, raceType, Player_Cards!inner(*)")
+				.Select("name, Player_Cards!inner(*)")
 				.Filter("Player_Cards.playerId", Constants.Operator.Equals, context.PlayerId)
 				.Order(x => x.Name, Constants.Ordering.Descending)
 				.Get();
+
 
 				if (cards.Models.Count == 0)
 				{
 					_logger.LogError("No unlocked cards found for player {id}.", context.PlayerId);
 					throw new Exception("No cards found.");
 				}
+				var cardNames = cards.Models.Select(x => x.Name).ToList();
 
-				return cards.Models;
+				return cardNames;
 			}
 			catch (Exception e)
 			{
@@ -142,8 +86,7 @@ namespace Yog.Api
 			try
 			{
 				var cards = await _supabaseClient.Connection.From<Card>()
-				.Select("id, name, attack, health, processorCost, memoryCost, description, imagePath, cardType, elementType, raceType, " +
-					"CardEffects(id, effectType, turnPhase, targetSide, targetType, selectionType, condition, amount1, amount2, turnsActive, activationType)")
+				.Select("name")
 				.Order(x => x.Name, Constants.Ordering.Descending)
 				.Get();
 
@@ -162,23 +105,80 @@ namespace Yog.Api
 			}
 		}
 
+		[CloudCodeFunction("EditCardsServer")]
+		public async Task EditCardsServer(List<Card> cards)
+		{
+			if (cards == null)
+			{
+				_logger.LogError("No cards received");
+				throw new Exception();
+			}
+			try
+			{
+				await _supabaseClient.Connection.Rpc("deleteAllCardEffects", null);
+				await _supabaseClient.Connection.From<Card>().Upsert(cards);
+				List<CardEffect> effects = new();
+				List<CardCardEffect> effectLinks = new();
+				HashSet<Guid> ids = new();
+				foreach (var card in cards)
+				{
+					foreach (var effect in card.Effects)
+					{
+						if (effect == null || effect.Id == default)
+						{
+							throw new Exception("Tried adding 0 id");
+						}
+						if (!ids.Contains(effect.Id))
+						{
+							effects.Add(effect);
+						}
+						ids.Add(effect.Id);
+						effectLinks.Add(new CardCardEffect()
+						{
+							CardId = card.Id,
+							EffectId = effect.Id
+						});
+					}
+				}
+
+
+				_logger.LogInformation(effects.Count.ToString() + "effects");
+				if (effects.Count > 0)
+				{
+					await _supabaseClient.Connection.From<CardEffect>().Upsert(effects);
+					await _supabaseClient.Connection.From<CardCardEffect>().Upsert(effectLinks);
+				}
+			}
+			catch (PostgrestException e)
+			{
+				_logger.LogError("Postgrest error. {error}", e.Message);
+				throw new Exception("Failed to edit cards.");
+			}
+			catch (SupabaseStorageException e)
+			{
+				_logger.LogError("Supbase error. {error}", e.Message);
+				throw new Exception("Failed to edit cards.");
+			}
+			catch (Exception e)
+			{
+				_logger.LogTrace(e, "Failed to edit cards");
+				throw new Exception("Failed to edit cards.");
+			}
+		}
+
 		[CloudCodeFunction("DeleteCardServer")]
-		public async Task DeleteCardServer(IExecutionContext context, string cardId)
+		public async Task DeleteCardServer(IExecutionContext context, string cardName)
 		{
 			try
 			{
-				var cardGuid = Guid.Parse(cardId);
-
 				var card = await _supabaseClient.Connection.From<Card>()
-				.Where(x => x.Id == cardGuid)
+				.Where(x => x.Name == cardName)
 				.Single();
 
 				if (card == null)
 				{
 					throw new Exception("Card not found.");
 				}
-
-				card.ArchivedAt = DateTime.UtcNow;
 
 				await card.Update<Card>();
 			}

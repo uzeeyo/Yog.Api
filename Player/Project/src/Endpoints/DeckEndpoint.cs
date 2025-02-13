@@ -7,6 +7,7 @@ using Supabase.Storage.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.Services.CloudCode.Apis;
 using Unity.Services.CloudCode.Core;
@@ -29,50 +30,50 @@ namespace Yog.Api.Endpoints
 		private readonly ILogger<DeckEndpoint> _logger;
 		private readonly ISupabaseClient _supabaseClient;
 
-		[CloudCodeFunction("GetDeck")]
-		public async Task<Deck> GetDeck(IExecutionContext context, string deckId)
-		{
-			try
-			{
-				var deckGuid = Guid.Parse(deckId);
-				var deck = await _supabaseClient.Connection.From<Deck>()
-				.Select(x => new object[] { x.Id, x.Name })
-				.Where(x => x.PlayerId == context.PlayerId && x.Id == deckGuid)
-				.Single();
+		// [CloudCodeFunction("GetDeck")]
+		// public async Task<Deck> GetDeck(IExecutionContext context, string deckId)
+		// {
+		// 	try
+		// 	{
+		// 		var deckGuid = Guid.Parse(deckId);
+		// 		var deck = await _supabaseClient.Connection.From<Deck>()
+		// 		.Select(x => new object[] { x.Id, x.Name })
+		// 		.Where(x => x.PlayerId == context.PlayerId && x.Id == deckGuid)
+		// 		.Single();
 
-				if (deck == null)
-				{
-					throw new Exception("Deck not found.");
-				}
+		// 		if (deck == null || deck.Cards == null) throw new Exception("Deck not found.");
 
-				return deck;
-			}
-			catch (PostgrestException e)
-			{
-				_logger.LogError("Postgrest error. {error}", e.Reason);
-				throw new Exception("Failed to get deck.");
-			}
-			catch (FormatException)
-			{
-				_logger.LogError("Attempted to get a deck without correct params.");
-				throw new Exception("Bad request.");
-			}
-			catch (NullReferenceException)
-			{
-				_logger.LogError("Attempted to get a deck without correct params.");
-				throw new Exception("Bad request.");
-			}
-			catch (SupabaseStorageException e)
-			{
-				_logger.LogError("Supabase error. {error}", e.Message);
-				throw new Exception("Failed to get deck.");
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Failed to get deck. {error}", e.Message);
-				throw new Exception("Failed to get deck.");
-			}
-		}
+		// 		deck.CardNames = deck.Cards.Select(x => x.Name).ToList();
+		// 		deck.Cards = null;
+
+		// 		return deck;
+		// 	}
+		// 	catch (PostgrestException e)
+		// 	{
+		// 		_logger.LogError("Postgrest error. {error}", e.Reason);
+		// 		throw new Exception("Failed to get deck.");
+		// 	}
+		// 	catch (FormatException)
+		// 	{
+		// 		_logger.LogError("Attempted to get a deck without correct params.");
+		// 		throw new Exception("Bad request.");
+		// 	}
+		// 	catch (NullReferenceException)
+		// 	{
+		// 		_logger.LogError("Attempted to get a deck without correct params.");
+		// 		throw new Exception("Bad request.");
+		// 	}
+		// 	catch (SupabaseStorageException e)
+		// 	{
+		// 		_logger.LogError("Supabase error. {error}", e.Message);
+		// 		throw new Exception("Failed to get deck.");
+		// 	}
+		// 	catch (Exception e)
+		// 	{
+		// 		_logger.LogError("Failed to get deck. {error}", e.Message);
+		// 		throw new Exception("Failed to get deck.");
+		// 	}
+		// }
 
 		[CloudCodeFunction("GetDeckServer")]
 		public async Task<Deck> GetDeckServer(IExecutionContext context, string deckId, string playerId)
@@ -81,14 +82,12 @@ namespace Yog.Api.Endpoints
 			{
 				var deckGuid = Guid.Parse(deckId);
 				var deck = await _supabaseClient.Connection.From<Deck>()
-				.Select("id, name, Cards!inner(id, name, cardType, attack, health, processorCost, memoryCost, description, imagePath, raceType, elementType, CardEffects(id, effectType, turnPhase, targetSide, targetType, selectionType, condition, amount1, amount2, turnsActive, activationType))")
+				.Select("id, name, Cards(name, cardType, race, attack, health, processorCost, memoryCost, " +
+				"CardEffects(effectType, activationType, turnPhase, targetSide, targetType, selectionType, conditionType, comparisonType, integerCondition, raceCondition, turnsActive, amount1, amount2))")
 				.Where(x => x.PlayerId == playerId && x.Id == deckGuid)
 				.Single();
 
-				if (deck == null)
-				{
-					throw new Exception("Deck not found.");
-				}
+				if (deck == null || deck.Cards == null) throw new Exception("Deck not found.");
 
 				return deck;
 			}
@@ -125,7 +124,7 @@ namespace Yog.Api.Endpoints
 			try
 			{
 				var decks = await _supabaseClient.Connection.From<Deck>()
-				.Select("id, name, Cards!inner(id, name, cardType, attack, health, processorCost, memoryCost, description, elementType, imagePath)")
+				.Select("id, name, Cards!inner(name)")
 				.Where(x => x.PlayerId == context.PlayerId)
 				.Order(x => x.CreatedAt, Constants.Ordering.Ascending)
 				.Get();
@@ -133,11 +132,19 @@ namespace Yog.Api.Endpoints
 				foreach (var deck in decks.Models)
 				{
 					deck.Cards.Sort((x, y) => x.Name.CompareTo(y.Name));
+					deck.CardNames = deck.Cards.Select(x => x.Name).ToList();
+					deck.Cards = null;
 				}
 
-				if (decks.Models == null)
+				if (decks.Models == null || decks.Models.Count == 0)
 				{
+					_logger.LogError("No decks found");
 					throw new Exception("Decks not found.");
+				}
+
+				foreach (var card in decks.Models[0].CardNames)
+				{
+					_logger.LogInformation(card);
 				}
 
 				return decks.Models;
@@ -160,9 +167,9 @@ namespace Yog.Api.Endpoints
 		}
 
 		[CloudCodeFunction("CreateDeck")]
-		public async Task CreateDeck(IExecutionContext context, string name, List<string> cardIds)
+		public async Task CreateDeck(IExecutionContext context, string name, List<string> cardNames)
 		{
-			if (cardIds.Count < MINDECKSIZE || cardIds.Count > MAXDECKSIZE)
+			if (cardNames.Count < MINDECKSIZE || cardNames.Count > MAXDECKSIZE)
 			{
 				throw new Exception("Invalid number of cards.");
 			}
@@ -189,18 +196,9 @@ namespace Yog.Api.Endpoints
 					_logger.LogError("Failed to create deck. Unsuccesful response received from database.");
 					throw new Exception("Failed to create deck.");
 				}
-				var deckCards = new List<DeckCard>();
-				foreach (var cardId in cardIds)
-				{
-					deckCards.Add(new DeckCard
-					{
-						DeckId = result.Model.Id,
-						CardId = Guid.Parse(cardId)
-					});
-				}
 
+				var deckCards = cardNames.Select(x => new DeckCard() { Id = Guid.NewGuid(), DeckId = result.Model.Id, CardName = x }).ToList();
 				await _supabaseClient.Connection.From<DeckCard>().Insert(deckCards);
-
 				return;
 			}
 			catch (PostgrestException e)
@@ -222,12 +220,9 @@ namespace Yog.Api.Endpoints
 		}
 
 		[CloudCodeFunction("EditDeck")]
-		public async Task EditDeck(IExecutionContext context, string deckId, List<string> cardIds)
+		public async Task EditDeck(IExecutionContext context, string deckId, List<string> cardNames)
 		{
-			//get deck from cloud save then compare cardIds to deck.Cards, if they are different, update deck.Cards and save deck
-			//if they are the same, do nothing
-
-			if (cardIds.Count < MINDECKSIZE || cardIds.Count > MAXDECKSIZE)
+			if (cardNames.Count < MINDECKSIZE || cardNames.Count > MAXDECKSIZE)
 			{
 				throw new Exception("Invalid number of cards.");
 			}
@@ -237,15 +232,7 @@ namespace Yog.Api.Endpoints
 				var deckGuid = Guid.Parse(deckId);
 
 				//TODO: back these up first
-				var deckCards = new List<DeckCard>();
-				foreach (var cardId in cardIds)
-				{
-					deckCards.Add(new DeckCard
-					{
-						DeckId = deckGuid,
-						CardId = Guid.Parse(cardId)
-					});
-				}
+				var deckCards = cardNames.Select(x => new DeckCard() { Id = Guid.NewGuid(), DeckId = deckGuid, CardName = x }).ToList();
 
 				await _supabaseClient.Connection.From<DeckCard>()
 				.Where(x => x.DeckId == deckGuid)
@@ -261,7 +248,7 @@ namespace Yog.Api.Endpoints
 			}
 			catch (PostgrestException e)
 			{
-				_logger.LogError("Postgrest error. {error}", e.Reason);
+				_logger.LogError("Postgrest error. {error}", e.Message);
 				throw new Exception("Failed to get deck.");
 			}
 			catch (SupabaseStorageException e)
@@ -289,7 +276,7 @@ namespace Yog.Api.Endpoints
 			}
 			catch (PostgrestException e)
 			{
-				_logger.LogError("Postgrest error. {error}", e.Reason);
+				_logger.LogError("Postgrest error. {error}", e.Message);
 				throw new Exception("Failed to delete deck.");
 			}
 			catch (FormatException)

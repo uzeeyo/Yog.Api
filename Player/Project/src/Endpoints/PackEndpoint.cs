@@ -55,7 +55,7 @@ namespace Yog.Api.Endpoints
 
 				var allCards = await supabase.Connection.From<Card>()
 				.Where(x => x.PackId == packId)
-				.Select(x => new object[] { x.Id, x.Name, x.CardType, x.Attack, x.Health, x.ProcessorCost, x.MemoryCost, x.Description, x.RaceType, x.ImagePath })
+				.Select(x => new object[] { x.Name})
 				.Get();
 
 				var cards = allCards.Models.OrderBy(x => Guid.NewGuid()).Take(3).ToList();
@@ -75,7 +75,7 @@ namespace Yog.Api.Endpoints
 				var unlockedCards = new List<PlayerCard>();
 				foreach (var card in cards)
 				{
-					unlockedCards.Add(new PlayerCard { PlayerId = context.PlayerId, CardId = card.Id, Count = 1 });
+					unlockedCards.Add(new PlayerCard { PlayerId = context.PlayerId, CardName = card.Name, Count = 1 });
 				}
 
 				var queryOptions = new QueryOptions { Returning = QueryOptions.ReturnType.Minimal, DuplicateResolution = QueryOptions.DuplicateResolutionType.IgnoreDuplicates };
