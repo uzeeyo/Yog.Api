@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Extensions.Configuration;
 using Supabase;
 using Unity.Services.CloudCode.Apis;
+using Yog.Api;
 
 namespace Yog.Database 
 {
@@ -10,16 +11,13 @@ namespace Yog.Database
 	{
 		public SupabaseClient() 
 		{
-			//this needs to be hardcoded until Unity adds support for environment variables
-			var url = "";
-			var key = "";
 			var options = new SupabaseOptions 
 			{
 				AutoConnectRealtime = true,
 				AutoRefreshToken = true,
 			};
 			
-			Connection = new Client(url, key, options);
+			Connection = new Client(Secret.SUPABASE_URL, Secret.SUPABASE_KEY, options);
 		}
 		
 		
