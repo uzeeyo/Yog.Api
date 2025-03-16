@@ -41,7 +41,7 @@ namespace Yog.Api
 		public int IntegerCondition { get; private set; }
 
 		[Column("raceCondition"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-		public int RaceCondition { get; private set; }	
+		public int RaceCondition { get; private set; }
 
 		[Column("turnsActive"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public int? TurnsActive { get; set; }
@@ -51,5 +51,14 @@ namespace Yog.Api
 
 		[Column("amount2", NullValueHandling.Ignore), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public int? Amount2 { get; set; }
+
+		[Column("inclusionType")]
+		public int InclusionType { get; set; }
+
+		[Column("uniquePassiveActivation")]
+		public bool UniquePassiveActivation { get; set; }
+		
+		[Column("passiveActivationTurn")]
+		public int PassiveActivationTurn { get; set; }
 	}
 }
