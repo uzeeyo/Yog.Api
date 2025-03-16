@@ -23,4 +23,7 @@ public class Pack : BaseModel
 
 	[Column("createdAt"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 	public DateTime? CreatedAt { get; set; }
+	
+	[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+	public List<string>? CardNames { get; set; }
 }
