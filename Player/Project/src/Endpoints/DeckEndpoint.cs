@@ -30,50 +30,6 @@ namespace Yog.Api.Endpoints
 		private readonly ILogger<DeckEndpoint> _logger;
 		private readonly ISupabaseClient _supabaseClient;
 
-		// [CloudCodeFunction("GetDeck")]
-		// public async Task<Deck> GetDeck(IExecutionContext context, string deckId)
-		// {
-		// 	try
-		// 	{
-		// 		var deckGuid = Guid.Parse(deckId);
-		// 		var deck = await _supabaseClient.Connection.From<Deck>()
-		// 		.Select(x => new object[] { x.Id, x.Name })
-		// 		.Where(x => x.PlayerId == context.PlayerId && x.Id == deckGuid)
-		// 		.Single();
-
-		// 		if (deck == null || deck.Cards == null) throw new Exception("Deck not found.");
-
-		// 		deck.CardNames = deck.Cards.Select(x => x.Name).ToList();
-		// 		deck.Cards = null;
-
-		// 		return deck;
-		// 	}
-		// 	catch (PostgrestException e)
-		// 	{
-		// 		_logger.LogError("Postgrest error. {error}", e.Reason);
-		// 		throw new Exception("Failed to get deck.");
-		// 	}
-		// 	catch (FormatException)
-		// 	{
-		// 		_logger.LogError("Attempted to get a deck without correct params.");
-		// 		throw new Exception("Bad request.");
-		// 	}
-		// 	catch (NullReferenceException)
-		// 	{
-		// 		_logger.LogError("Attempted to get a deck without correct params.");
-		// 		throw new Exception("Bad request.");
-		// 	}
-		// 	catch (SupabaseStorageException e)
-		// 	{
-		// 		_logger.LogError("Supabase error. {error}", e.Message);
-		// 		throw new Exception("Failed to get deck.");
-		// 	}
-		// 	catch (Exception e)
-		// 	{
-		// 		_logger.LogError("Failed to get deck. {error}", e.Message);
-		// 		throw new Exception("Failed to get deck.");
-		// 	}
-		// }
 
 		[CloudCodeFunction("GetDeckServer")]
 		public async Task<Deck> GetDeckServer(IExecutionContext context, string deckId, string playerId)
@@ -83,7 +39,7 @@ namespace Yog.Api.Endpoints
 				var deckGuid = Guid.Parse(deckId);
 				var deck = await _supabaseClient.Connection.From<Deck>()
 				.Select("id, name, Cards(name, cardType, race, attack, health, processorCost, memoryCost, " +
-				"CardEffects(effectType, activationType, turnPhase, targetSide, targetType, selectionType, conditionType, comparisonType, integerCondition, raceCondition, turnsActive, amount1, amount2))")
+				"CardEffects(*))")
 				.Where(x => x.PlayerId == playerId && x.Id == deckGuid)
 				.Single();
 
@@ -117,6 +73,51 @@ namespace Yog.Api.Endpoints
 				throw new Exception("Failed to get deck.");
 			}
 		}
+
+		[CloudCodeFunction("GetAIDeckServer")]
+		public async Task<Deck> GetAIDeckServer()
+		{
+			try
+			{
+				var decks = await _supabaseClient.Connection.From<Deck>()
+				.Select("id, name, Cards(name, cardType, race, attack, health, processorCost, memoryCost, " +
+				"CardEffects(*))")
+				.Where(x => x.PlayerId == "stFRgEyo4tEm0VJGiBdMUeUG9Pgu")
+				.Get();
+				
+				var deck = decks.Models.FirstOrDefault();
+
+				if (deck == null || deck.Cards == null) throw new Exception("Could not get AI deck.");
+
+				return deck;
+			}
+			catch (PostgrestException e)
+			{
+				_logger.LogError("Failed to get dec4k. Postgrest error. {error}", e.Message);
+				throw new Exception("Failed to get deck.");
+			}
+			catch (FormatException)
+			{
+				_logger.LogError("Attempted to get a deck without correct params.");
+				throw new Exception("Bad request.");
+			}
+			catch (NullReferenceException)
+			{
+				_logger.LogError("Attempted to get a deck without correct params.");
+				throw new Exception("Bad request.");
+			}
+			catch (SupabaseStorageException e)
+			{
+				_logger.LogError("Supabase error. {error}", e.Message);
+				throw new Exception("Failed to get deck.");
+			}
+			catch (Exception e)
+			{
+				_logger.LogError("Failed to get deck. {error}", e.Message);
+				throw new Exception("Failed to get deck.");
+			}
+		}
+
 
 		[CloudCodeFunction("GetAllPlayerDecks")]
 		public async Task<List<Deck>> GetAllPlayerDecks(IExecutionContext context, IGameApiClient gameApiClient)
@@ -260,6 +261,45 @@ namespace Yog.Api.Endpoints
 			{
 				_logger.LogError("Failed to get deck. {error}", e.Message);
 				throw new Exception("Failed to get deck.");
+			}
+		}
+
+		[CloudCodeFunction("CreateStarterDecksServer")]
+		public async Task CreateStarterDecks(List<StarterDeck> decks)
+		{
+			try
+			{
+
+				List<StarterDeck_Card> cards = new();
+				foreach (var deck in decks)
+				{
+
+					var cardIds = deck.CardNames;
+					deck.CardNames = null;
+
+					if (cardIds == null || cardIds.Count == 0)
+					{
+						_logger.LogError("Deck has no cards.");
+						throw new Exception("Deck has no cards.");
+					}
+					await _supabaseClient.Connection.From<StarterDeck>().Upsert(decks);
+					// await _supabaseClient.Connection.From<StarterDeck_Card>()
+					// 	.Where(x => x.DeckId != Guid.Empty)
+					// 	.Delete();
+
+					foreach (var cardId in cardIds)
+					{
+						cards.Add(new StarterDeck_Card { Id = Guid.NewGuid(), DeckId = deck.Id, CardName = cardId });
+					}
+				}
+
+				await _supabaseClient.Connection.From<StarterDeck_Card>().Upsert(cards);
+			}
+			catch (Exception e)
+			{
+				_logger.LogError("Failed to create starter decks. {error}", e.Message);
+				_logger.LogTrace(e, "Failed to create starter decks.");
+				throw new Exception("Failed to create starter decks.");
 			}
 		}
 
