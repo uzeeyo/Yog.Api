@@ -24,34 +24,6 @@ namespace Yog.Api
 		private readonly ILogger _logger;
 		private readonly ISupabaseClient _supabaseClient;
 
-		[CloudCodeFunction("CreateCardServer")]
-		public async Task CreateCard(IExecutionContext context, Card card)
-		{
-			try
-			{
-				var insertedCard = await _supabaseClient.Connection.From<Card>().Insert(card, new QueryOptions { Returning = QueryOptions.ReturnType.Representation });
-				_logger.LogInformation("Created card: {name}.", card.Name);
-
-				//just unlocking all cards for myself
-				await _supabaseClient.Connection.From<PlayerCard>().Insert(new PlayerCard { PlayerId = "stFRgEyo4tEm0VJGiBdMUeUG9Pgu", CardName = insertedCard.Model.Name, Count = 1 });
-			}
-			catch (PostgrestException e)
-			{
-				_logger.LogError("Postgrest error. {error}", e.Message);
-				throw new Exception("Failed to create card.");
-			}
-			catch (SupabaseStorageException e)
-			{
-				_logger.LogError("Supbase error. {error}", e.Message);
-				throw new Exception("Failed to create card.");
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Failed to create card. {error}", e.Message);
-				throw new Exception("Failed to create card.");
-			}
-		}
-
 		[CloudCodeFunction("GetUnlockedCards")]
 		public async Task<List<string>> GetUnlockedCards(IExecutionContext context)
 		{
@@ -80,31 +52,6 @@ namespace Yog.Api
 			}
 		}
 
-		[CloudCodeFunction("GetAllCardsServer")]
-		public async Task<List<Card>> GetAllCardsServer()
-		{
-			try
-			{
-				var cards = await _supabaseClient.Connection.From<Card>()
-				.Select("name")
-				.Order(x => x.Name, Constants.Ordering.Descending)
-				.Get();
-
-				if (cards.Models.Count == 0)
-				{
-					_logger.LogError("No cards found.");
-					throw new Exception("No cards found.");
-				}
-
-				return cards.Models;
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Failed to get all cards. {error}", e.Message);
-				throw new Exception("Failed to get all cards.");
-			}
-		}
-
 		[CloudCodeFunction("EditCardsServer")]
 		public async Task EditCardsServer(List<Card> cards)
 		{
@@ -115,7 +62,7 @@ namespace Yog.Api
 			}
 			try
 			{
-				await _supabaseClient.Connection.Rpc("deleteAllCardEffects", null);
+				await _supabaseClient.Connection.Rpc("deleteallcardeffects", null);
 				await _supabaseClient.Connection.From<Card>().Upsert(cards);
 				List<CardEffect> effects = new();
 				List<CardCardEffect> effectLinks = new();
