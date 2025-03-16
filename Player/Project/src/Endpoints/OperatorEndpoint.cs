@@ -50,6 +50,40 @@ namespace Yog.Api.Endpoints
 			}
 		}
 		
+		[CloudCodeFunction("GetAIOperator")]
+		public async Task<Operator> GetAIOperatorData()
+		{
+			try
+			{
+				var opData = await _supabaseClient.Connection.From<Operator>()
+				.Select(x => new object[] { x.Id, x.Name, x.Health, x.Memory, x.Shields, x.ShieldRegen })
+				.Where(x => x.Name == "LUNA")
+				.Single();
+				
+				if (opData == null)
+				{
+					throw new Exception("Failed to get operator.");
+				}
+
+				return opData;
+			}
+			catch (PostgrestException e)
+			{
+				_logger.LogError("Postgrest error. {error}", e.Reason);
+				throw new Exception("Failed to get operator.");
+			}
+			catch (SupabaseStorageException e)
+			{
+				_logger.LogError("Supabase error. {error}", e.Message);
+				throw new Exception("Failed to delete deck.");
+			}
+			catch (Exception e)
+			{
+				_logger.LogError("Failed to get deck. {error}", e.Message);
+				throw new Exception("Failed to delete deck.");
+			}
+		}
+		
 		[CloudCodeFunction("GetAllOperators")]
 		public async Task<List<Operator>> GetAllOperatorData()
 		{
