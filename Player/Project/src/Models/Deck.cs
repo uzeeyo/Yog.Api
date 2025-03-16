@@ -30,7 +30,7 @@ namespace Yog.Api.Models
 		[Column("archivedAt"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public DateTime? ArchivedAt { get; set; }
 		
-		[JsonProperty]
+		[JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public List<string> CardNames { get; set; }
 	}
 }
