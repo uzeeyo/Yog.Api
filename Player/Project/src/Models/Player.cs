@@ -17,6 +17,9 @@ namespace Yog.Api.Models
 
 		[Column("createdAt"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
 		public DateTime? CreatedAt { get; set; }
+		
+		[Column("lastLogin"), JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+		public DateTime? LastLogin { get; set; }
 
 		[Column("xp")]
 		public int Xp { get; set; }
@@ -29,9 +32,6 @@ namespace Yog.Api.Models
 
 		[Column("Decks", NullValueHandling.Ignore, true, true)]
 		public List<Deck>? Decks { get; set; }
-
-		[Reference(typeof(Pack), false)]
-		public List<Pack>? Packs { get; set; }
 
 	}
 
